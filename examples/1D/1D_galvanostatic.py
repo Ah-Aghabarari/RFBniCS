@@ -146,17 +146,14 @@ def solve_problem(
     Eeq_neg = _E_formal + (_R * _T / _F) * ufl.ln((c_V3_eff + eps_c) / (c_V2_eff + eps_c))
     eta = phi_s - phi_l - Eeq_neg
 
-    # Exchange current density i0
-    i0 = _F * _k0 * (c_V2_eff**_alpha_c) * (c_V3_eff**_alpha_a)
-
     c_V2_s = c_V2_eff
     c_V3_s = c_V3_eff
+    
+    delta_phi = phi_s - phi_l - _E_formal
 
-    # BV
-    i_F = i0 * (
-        (c_V2_s / (c_V2_eff + eps_c)) * ufl.exp(_alpha_a * _F * eta / (_R * _T))
-        - (c_V3_s / (c_V3_eff + eps_c)) * ufl.exp(-_alpha_c * _F * eta / (_R * _T))
-    )
+    A = _k0 * ufl.exp(_alpha_a * _F * delta_phi / (_R * _T))
+    B = _k0 * ufl.exp(-_alpha_c * _F * delta_phi / (_R * _T))
+    i_F = _F * (A * c_V2_s - B * c_V3_s)
 
     f = _a * i_F
 
