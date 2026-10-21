@@ -397,9 +397,6 @@ def solve_problem(
     Eeq_neg = _E_formal + (_R * _T / _F) * ufl.ln((c_V3_eff + eps_c) / (c_V2_eff + eps_c))
     eta = phi_s - phi_l - Eeq_neg
 
-    # Exchange current density i0
-    i0 = _F * _k0 * (c_V2_eff**_alpha_c) * (c_V3_eff**_alpha_a)
-
     # Fixed Darcy velocity from the independent pressure solve
     eps_speed = dolfinx.fem.Constant(mesh, 1e-16)
     v_mag = ufl.sqrt(ufl.dot(v_flow, v_flow) + eps_speed**2)
@@ -411,19 +408,10 @@ def solve_problem(
     k_mR = 7.0 * _D_V2 / _df * (Re**0.4)  # for V2+ (R)
     k_mO = 7.0 * _D_V3 / _df * (Re**0.4)  # for V3+ (O)
 
-    # Coefficients A and B
-    A = (
-        _k0
-        * (c_V2_eff + eps_c) ** (_alpha_c - 1.0)
-        * (c_V3_eff + eps_c) ** (_alpha_a)
-        * ufl.exp(_alpha_a * _F * eta / (_R * _T))
-    )
-    B = (
-        _k0
-        * (c_V2_eff + eps_c) ** (_alpha_c)
-        * (c_V3_eff + eps_c) ** (_alpha_a - 1.0)
-        * ufl.exp(-_alpha_c * _F * eta / (_R * _T))
-    )
+    delta_phi = phi_s - phi_l - _E_formal   
+
+    A = _k0 * ufl.exp(_alpha_a * _F * delta_phi / (_R * _T))   
+    B = _k0 * ufl.exp(-_alpha_c * _F * delta_phi / (_R * _T))
 
     # Surface concentrations from explicit solution
     den = 1.0 + A / (k_mR + eps_c) + B / (k_mO + eps_c)
@@ -435,15 +423,8 @@ def solve_problem(
         (1.0 + B / (k_mO + eps_c)) * c_V2_eff + (B / (k_mR + eps_c)) * c_V3_eff
     ) / den  # C_R^s
 
-    # Clamp to nonnegative
-    c_V2_s = 0.5 * (c_V2_s + ufl.sqrt(c_V2_s * c_V2_s + eps_c * eps_c))
-    c_V3_s = 0.5 * (c_V3_s + ufl.sqrt(c_V3_s * c_V3_s + eps_c * eps_c))
-
     # BV
-    i_F_raw = i0 * (
-        (c_V2_s / (c_V2_eff + eps_c)) * ufl.exp(_alpha_a * _F * eta / (_R * _T))
-        - (c_V3_s / (c_V3_eff + eps_c)) * ufl.exp(-_alpha_c * _F * eta / (_R * _T))
-    )
+    i_F_raw = _F * (A * c_V2_s - B * c_V3_s)
 
     # Faradaic current exists only inside the porous electrode
     i_F = mask_E * i_F_raw
